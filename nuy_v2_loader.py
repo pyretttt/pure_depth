@@ -96,8 +96,8 @@ def create_files(data_path, dst):
   assert(not os.path.exists(dst))
   train_path = os.path.join(dst, "train")
   test_path = os.path.join(dst, "test")
-  os.makedirs(train_path)
-  os.makedirs(test_path)
+  os.makedirs(train_path, exist_ok=True)
+  os.makedirs(test_path, exist_ok=True)
   
   assert(os.path.exists(train_path) and os.path.exists(test_path))
   
@@ -120,7 +120,7 @@ def create_files(data_path, dst):
       np.save(destination_path + ".npy", depth)
 
   
-  test_extracted_path = os.path.join(data_path, "val")
+  test_extracted_path = os.path.join(data_path, "val", "official")
   for file_name in os.listdir(test_extracted_path):
       file = h5py.File(os.path.join(test_extracted_path, file_name))
       file_name_without_ext = Path(file_name).stem
