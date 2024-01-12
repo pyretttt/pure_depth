@@ -63,10 +63,18 @@ def _download(root_dir):
   if not os.path.exists(tar):
      download_url(_URL, root_dir)
       
-  if not os.path.exists(tar.rstrip(".gz")) and os.path.exists(tar):
+  if os.path.exists(tar) and not os.path.exists(tar.split(".")[0]):
     _unpack(tar, root_dir)
   else:
     print("Failed to load tar file")
+ 
+  destination_data_folder = os.path.join(root_dir, "nyu_v2_data")
+  if not os.path.exists(destination_data_folder):
+    print("Started to creating raw data")
+    create_files(
+      tar.split(".")[0],
+      os.path.join(root_dir, "nyu_v2_data")
+    )
       
   print("Finished loading dataset")
 
@@ -77,28 +85,28 @@ def _unpack(file_path, dst):
     tar.close()
   else:
     print("Failed to unpack")
-      
-def _replace_folder(src, dst):
-    if os.path.exists(dst):
-        shutil.rmtree(dst)
-    shutil.move(src, dst)
     
-def _rename_files(dst, name_mapper: callable):
-    imgs_old = os.listdir(dst)
-    imgs_new = [name_mapper(file) for file in imgs_old]
-    for img_old, img_new in zip(imgs_old, imgs_new):
-        shutil.move(os.path.join(dst, img_old), os.path.join(dst, img_new))
-        
-def _create_depth_files(mat_file: str, root: str, train_ids: list):
-  os.mkdir(os.path.join(root, "train_depth"))
-  os.mkdir(os.path.join(root, "test_depth"))
-  train_ids = set(train_ids)
-
-  depths = h5py.File(mat_file, "r")["depths"]
-  for i in range(len(depths)):
-      img = (depths[i] * 1e4).astype(np.uint16).T
-      id_ = str(i + 1).zfill(4)
-      folder = "train" if id_ in train_ids else "test"
-      save_path = os.path.join(root, f"{folder}_depth", id_ + ".png")
-      Image.fromarray(img).save(save_path)
-
+    
+def create_files(data_path, dst):
+  if not os.path.exists(data_path):
+    print(f"Data Folder {data_path} doesn't exists")
+    sys.exit(1)
+  
+  assert(not os.path.exists(dst))
+  train_path = os.path.join(dst, "train")
+  test_path = os.path.join(dst, "test")
+  map(lambda: os.path.makedirs, (train_path, test_path))
+  
+  train_extracted_path = os.path.join(data_path, "train")
+  for folder_name in os.listdir(train_extracted_path):
+    folder_path = os.path.join(train_extracted_path, folder_name)
+    for file in os.listdir(folder_path):
+      file = h5py.File(os.path.join(folder_path, file))
+      
+      rgb = file["rgb"]
+      rgb = np.stack([(rgb[channel]) for channel in range(len(rgb))], axis=2)
+      depth = file["depth"]
+      
+      destination_path = os.path.join(train_path, f"{folder_name}_{file}")
+      Image.fromarray(rgb).save(destination_path + ".png")
+      np.save(destination_path + ".npy", depth)
