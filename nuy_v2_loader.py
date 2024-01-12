@@ -7,6 +7,7 @@ import random
 import tarfile
 import zipfile
 import numpy as np
+from pathlib import Path
 
 from PIL import Image
 from torch.utils.data import Dataset
@@ -95,18 +96,42 @@ def create_files(data_path, dst):
   assert(not os.path.exists(dst))
   train_path = os.path.join(dst, "train")
   test_path = os.path.join(dst, "test")
-  map(lambda: os.path.makedirs, (train_path, test_path))
+  os.makedirs(train_path)
+  os.makedirs(test_path)
+  
+  assert(os.path.exists(train_path) and os.path.exists(test_path))
   
   train_extracted_path = os.path.join(data_path, "train")
   for folder_name in os.listdir(train_extracted_path):
     folder_path = os.path.join(train_extracted_path, folder_name)
-    for file in os.listdir(folder_path):
-      file = h5py.File(os.path.join(folder_path, file))
+    for file_name in os.listdir(folder_path):
+      file = h5py.File(os.path.join(folder_path, file_name))
+      file_name_without_ext = Path(file_name).stem
       
       rgb = file["rgb"]
       rgb = np.stack([(rgb[channel]) for channel in range(len(rgb))], axis=2)
       depth = file["depth"]
       
-      destination_path = os.path.join(train_path, f"{folder_name}_{file}")
+      destination_path = os.path.join(
+        train_path, 
+        f"{folder_name}_{file_name_without_ext}"
+      )
       Image.fromarray(rgb).save(destination_path + ".png")
       np.save(destination_path + ".npy", depth)
+
+  
+  test_extracted_path = os.path.join(data_path, "val")
+  for file_name in os.listdir(test_extracted_path):
+      file = h5py.File(os.path.join(test_extracted_path, file_name))
+      file_name_without_ext = Path(file_name).stem
+      
+      rgb = file["rgb"]
+      rgb = np.stack([(rgb[channel]) for channel in range(len(rgb))], axis=2)
+      depth = file["depth"]
+      
+      destination_path = os.path.join(
+        test_path, 
+        f"{file_name_without_ext}"
+      )
+      Image.fromarray(rgb).save(destination_path + ".png")
+      np.save(destination_path + ".npy", depth) 
