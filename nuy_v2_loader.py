@@ -2,18 +2,18 @@ import os
 import sys
 import h5py
 import torch
-import shutil
 import random
 import tarfile
-import zipfile
 import numpy as np
 from pathlib import Path
+from multiprocessing import Pool
 
 from PIL import Image
 from torch.utils.data import Dataset
 from torchvision.datasets.utils import download_url
 
 _URL = "http://datasets.lids.mit.edu/fastdepth/data/nyudepthv2.tar.gz"
+_WORKERS = 2
 
 class NYUV2Dataset(Dataset):
   def __init__(
@@ -102,24 +102,14 @@ def create_files(data_path, dst):
   assert(os.path.exists(train_path) and os.path.exists(test_path))
   
   train_extracted_path = os.path.join(data_path, "train")
-  for folder_name in os.listdir(train_extracted_path):
-    folder_path = os.path.join(train_extracted_path, folder_name)
-    for file_name in os.listdir(folder_path):
-      file = h5py.File(os.path.join(folder_path, file_name))
-      file_name_without_ext = Path(file_name).stem
-      
-      rgb = file["rgb"]
-      rgb = np.stack([(rgb[channel]) for channel in range(len(rgb))], axis=2)
-      depth = file["depth"]
-      
-      destination_path = os.path.join(
-        train_path, 
-        f"{folder_name}_{file_name_without_ext}"
-      )
-      Image.fromarray(rgb).save(destination_path + ".png")
-      np.save(destination_path + ".npy", depth)
+  with Pool(_WORKERS) as p:
+    folders = os.listdir(train_extracted_path)
+    folders_paths = [os.path.join(train_extracted_path, f) for f in folders]
+    
+    results = [p.apply_async(create_rgb_and_depth, (folders_paths, train_path, w, _WORKERS)) 
+               for w in range(_WORKERS)]
+    [r.get() for r in results]
 
-  
   test_extracted_path = os.path.join(data_path, "val", "official")
   for file_name in os.listdir(test_extracted_path):
       file = h5py.File(os.path.join(test_extracted_path, file_name))
@@ -135,3 +125,25 @@ def create_files(data_path, dst):
       )
       Image.fromarray(rgb).save(destination_path + ".png")
       np.save(destination_path + ".npy", depth) 
+
+      
+def create_rgb_and_depth(folders, dst_path, start, each_nth):
+  print(f"{os.getpid()} started data creation")
+  
+  folders_to_visit = folders[start::each_nth]
+  for folder_path in folders_to_visit:
+    folder_name = Path(folder_path).stem
+    for file_name in os.listdir(folder_path):
+      file = h5py.File(os.path.join(folder_path, file_name))
+      file_name_without_ext = Path(file_name).stem
+      
+      rgb = file["rgb"]
+      rgb = np.stack([(rgb[channel]) for channel in range(len(rgb))], axis=2)
+      depth = file["depth"]
+    
+      destination_path = os.path.join(
+        dst_path, 
+        f"{folder_name}_{file_name_without_ext}"
+      )
+      Image.fromarray(rgb).save(destination_path + ".png")
+      np.save(destination_path + ".npy", depth)
