@@ -14,6 +14,7 @@ from torchvision.datasets.utils import download_url
 
 _URL = "http://datasets.lids.mit.edu/fastdepth/data/nyudepthv2.tar.gz"
 _WORKERS = 2
+_DATA_FOLDER = "nyu_v2_data"
 
 class NYUV2Dataset(Dataset):
   def __init__(
@@ -35,21 +36,25 @@ class NYUV2Dataset(Dataset):
 
     if self._download:
       _download(self._root_dir)
-      
-    # self._files = sorted(os.listdir(os.path.join(root_dir, f"{self._split}_rgb")))
+    
+    self._files = sorted(
+      set(
+        map(
+          lambda p: os.path.splitext(p)[0],
+          os.listdir(os.path.join(root_dir, _DATA_FOLDER, f"{self._split}"))
+        )
+      )
+    )
   
   def __getitem__(self, index):
-    folder = lambda name :os.path.join(self._root_dir, f"{self._split}_{name}")
     random.seed(self.seed)
     
-    rgb = Image.open(os.path.join(folder("rgb"), self._files[index]))
-    rgb = self.rgb_transform(rgb)
+    file_path = os.path.join(self._root_dir, _DATA_FOLDER, self._split, self._files[index])
+    rgb = Image.open(file_path + ".png")
+    rgb = self._rgb_transform(rgb)
     
-    depth = Image.open(os.path.join(folder("depth"), self._files[index]))
-    depth = self.depth_transform(depth)
-    if isinstance(depth, torch.Tensor):
-      # depth png is uint16
-      depth = depth.float() / 1e4
+    depth = np.load(file_path + ".npy")
+    depth = self._depth_transform(depth)
 
     return rgb, depth
 
@@ -69,12 +74,12 @@ def _download(root_dir):
   else:
     print("Failed to load tar file")
  
-  destination_data_folder = os.path.join(root_dir, "nyu_v2_data")
+  destination_data_folder = os.path.join(root_dir, _DATA_FOLDER)
   if not os.path.exists(destination_data_folder):
     print("Started to creating raw data")
     create_files(
       tar.split(".")[0],
-      os.path.join(root_dir, "nyu_v2_data")
+      destination_data_folder
     )
       
   print("Finished loading dataset")
