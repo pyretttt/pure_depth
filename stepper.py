@@ -67,7 +67,7 @@ class Stepper:
       
     return np.mean(running_loss)
   
-  def set_seed(self, seed=42):
+  def set_seed(self, seed):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False    
     torch.manual_seed(seed)
@@ -78,7 +78,7 @@ class Stepper:
     except AttributeError:
         pass
   
-  def train(self, n_epochs, seed=42):
+  def train(self, n_epochs, seed=43):
     self.set_seed(seed)
     
     for epoch in range(n_epochs):
