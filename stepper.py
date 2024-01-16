@@ -31,7 +31,7 @@ class Stepper:
       loss.backward()
       
       self.optim.step()
-      loss.zero_grad()
+      self.optim.zero_grad()
       
       return loss.item()
     
@@ -64,6 +64,8 @@ class Stepper:
         X_batch, y_batch = X_batch.to(self.device), y_batch.to(self.device)
         loss = step_fn(X_batch, y_batch)
         running_loss.append(loss)
+
+        t_epoch.set_postfix(loss=loss)
       
     return np.mean(running_loss)
   
