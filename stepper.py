@@ -9,7 +9,6 @@ class Stepper:
     self.model = model
     self.optim = optim
     self.loss_fn = loss_fn
-    self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
     self._train_step_fn = self._make_train_step_fn()
     self._val_step_fn = self._make_val_step_fn()
@@ -17,6 +16,10 @@ class Stepper:
     self.train_losses = []
     self.val_losses = []
     
+  def to(self, device):
+    self.model.to(device)
+    self.device = device
+
   def set_loaders(self, train_loader, val_loader):
     self._train_loader = train_loader
     self._val_loader = val_loader
