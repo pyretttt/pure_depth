@@ -4,11 +4,14 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
+from summary_writer import SummaryWriter
+
 class Stepper:
-  def __init__(self, model, optim, loss_fn):
+  def __init__(self, model, optim, loss_fn, summary_writter: SummaryWriter = None):
     self.model = model
     self.optim = optim
     self.loss_fn = loss_fn
+    self.summary_writter = summary_writter
     
     self._train_step_fn = self._make_train_step_fn()
     self._val_step_fn = self._make_val_step_fn()
@@ -69,8 +72,9 @@ class Stepper:
         running_loss.append(loss)
 
         t_epoch.set_postfix(loss=loss)
-      
-    return np.mean(running_loss)
+    
+    loss = np.mean(running_loss)
+    return loss
   
   def set_seed(self, seed):
     torch.backends.cudnn.deterministic = True
@@ -93,3 +97,10 @@ class Stepper:
       with torch.no_grad():
         val_loss = self._mini_batch(val=True)
         self.val_losses.append(val_loss)
+      
+      if (sw := self.summary_writter):
+        sw.track_object({
+          'train_loss': train_loss,
+          'val_loss': val_loss,
+          'epoch': epoch,
+        })
