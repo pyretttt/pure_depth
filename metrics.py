@@ -15,18 +15,15 @@ def average_absolute_log_error(y_hat, y_true):
     torch.log10(y_hat + _EPS) - torch.log10(y_true + _EPS)
   ).abs().mean()
   
-def threshold_accuracy(threshold):
-  def _threshold_acc(y_hat, y_true):
-    thr = torch.max(
-      y_hat / (y_true + _EPS),
-      y_true / (y_hat + _EPS)
-    ) < threshold
-    
-    return torch.sum(thr) / torch.numel(thr)
-  
-  return _threshold_acc
 
-THRESHOLD = 1.25
-threshold_acc_delta_1 = threshold_accuracy(THRESHOLD)
-threshold_acc_delta_2 = threshold_accuracy(THRESHOLD ** 2)
-threshold_acc_delta_3 = threshold_accuracy(THRESHOLD ** 3)
+def threshold_acc(y_hat, y_true):
+  thresh = torch.max(
+    y_hat / (y_true + _EPS),
+    y_true / (y_hat + _EPS)
+  )
+  N = torch.numel(y_hat)
+  a1 = (thresh < 1.25).sum() / N
+  a2 = (thresh < 1.25 ** 2).sum() / N
+  a3 = (thresh < 1.25 ** 3).sum() / N
+    
+  return a1, a2, a3
