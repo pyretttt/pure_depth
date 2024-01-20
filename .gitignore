@@ -5,3 +5,4 @@ env
 __pycache__/
 .ipynb_checkpoints
 /wandb
+resnet101_dummy
