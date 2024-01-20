@@ -137,3 +137,12 @@ class Stepper:
     self.val_losses = checkpoint['val_losses']
     self.model.load_state_dict(checkpoint['model_state_dict'])
     self.optim.load_state_dict(checkpoint['optim_state_dict'])
+  
+  def predict(self, x_batch):
+    '''
+    Should be called inside torch.no_grad()
+    '''
+    x_batch = x_batch.to(self.device)
+    self.model.eval()
+    pred = self.model(x_batch)
+    return pred

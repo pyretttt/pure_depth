@@ -2,7 +2,7 @@ import torch
 
 _EPS = 1e-8
 
-def absolute_relative_mean_errror(y_hat, y_true):
+def absolute_relative_mean_error(y_hat, y_true):
   return ((y_true - y_hat).abs() / (y_true + _EPS)).mean()
 
 def root_mean_squared_error(y_hat, y_true):
