@@ -10,7 +10,7 @@ class SummaryWriter(ABC):
   def track_object(self, **args):
     pass
   
-  def finalize():
+  def finalize(self):
     pass
 
 class WandBSummaryWritter(SummaryWriter):
@@ -23,5 +23,5 @@ class WandBSummaryWritter(SummaryWriter):
   def track_object(self, obj):
     wandb.log(obj)
     
-  def finalize():
+  def finalize(self):
     wandb.finish()

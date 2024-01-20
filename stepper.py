@@ -2,16 +2,29 @@ import random
 
 import numpy as np
 import torch
+from torch import nn
+from torch.optim import Optimizer
 from tqdm import tqdm
 
 from summary_writer import SummaryWriter
 
 class Stepper:
-  def __init__(self, model, optim, loss_fn, summary_writter: SummaryWriter = None):
-    self.model = model
-    self.optim = optim
+  def __init__(
+    self,
+    model: nn.Module, 
+    optim: Optimizer, 
+    loss_fn: callable, 
+    summary_writter: SummaryWriter = None
+  ):
+    self.model: nn.Module = model
+    self.optim: Optimizer = optim
     self.loss_fn = loss_fn
-    self.summary_writter = summary_writter
+    self.summary_writter: SummaryWriter = summary_writter
+    
+    self._train_loader = None
+    self._val_loader = None
+    
+    self.total_epochs = 0
     
     self._train_step_fn = self._make_train_step_fn()
     self._val_step_fn = self._make_val_step_fn()
@@ -98,9 +111,29 @@ class Stepper:
         val_loss = self._mini_batch(val=True)
         self.val_losses.append(val_loss)
       
+      self.total_epochs += 1
+      
       if (sw := self.summary_writter):
         sw.track_object({
           'train_loss': train_loss,
           'val_loss': val_loss,
           'epoch': epoch,
         })
+
+  def save_checkpoint(self, file_name: str):
+    checkpoint = {
+     'total_epochs': self.total_epochs,
+     'train_losses': self.train_losses,
+     'val_losses': self.val_losses,
+     'model_state_dict': self.model.state_dict(),
+     'optim_state_dict': self.optim.state_dict()
+    }
+    torch.save(checkpoint, file_name)
+    
+  def load_checkpoint(self, file_name):
+    checkpoint = torch.load(file_name)
+    self.total_epochs = checkpoint['total_epochs']
+    self.train_losses = checkpoint['train_losses']
+    self.val_losses = checkpoint['val_losses']
+    self.model.load_state_dict(checkpoint['model_state_dict'])
+    self.optim.load_state_dict(checkpoint['optim_state_dict'])
