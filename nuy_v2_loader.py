@@ -24,13 +24,15 @@ class NYUV2Dataset(Dataset):
     depth_transform,
     split: str,
     download: bool = False,
-    seed: int = 42
+    seed: int = 42,
+    max_lenght: int = None,
   ):
     self._root_dir = root_dir
     self._rgb_transform = rgb_transform
     self._depth_transform = depth_transform
     self._split = split
     self.seed = 42
+    self.max_lenght = max_lenght
     
     self._download = download
 
@@ -59,8 +61,8 @@ class NYUV2Dataset(Dataset):
     return rgb, depth
 
   def __len__(self):
-    return len(self._files)
-
+    override_lenght = self.max_lenght or sys.maxsize
+    return min(override_lenght, len(self._files))
 
 def _download(root_dir):
   print("Downloading from remote")

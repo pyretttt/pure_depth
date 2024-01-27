@@ -31,6 +31,8 @@ class Stepper:
     
     self.train_losses = []
     self.val_losses = []
+
+    self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
   def to(self, device):
     self.model.to(device)
