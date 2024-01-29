@@ -1,3 +1,4 @@
+import torch
 from torch import nn
 from torch.nn import functional as F
 from torchvision.models import resnet101
@@ -20,10 +21,10 @@ class Resnet101RefineNet(nn.Module):
           p.requires_grad_(False)
 
       module = nn.Module()
-      module.layer1 = nn.Sequential(resnet.conv1, resnet.bn1, resnet.relu, resnet.maxpool, resnet.layer1)
-      module.layer2 = resnet.layer2
-      module.layer3 = resnet.layer3
-      module.layer4 = resnet.layer4
+      module.layer1 = nn.Sequential(resnet.conv1, resnet.bn1, resnet.relu, resnet.maxpool, resnet.layer1) # 256C*(1/4)H*(1/4)W
+      module.layer2 = resnet.layer2 # 512C*(1/8)H*(1/8)W
+      module.layer3 = resnet.layer3 # 1024C*(1/16)H*(1/16)W
+      module.layer4 = resnet.layer4 # 2048C*(1/32)H*(1/32)W
 
       return module
 
@@ -42,7 +43,7 @@ class Resnet101RefineNet(nn.Module):
       
       module.output_conv = nn.Sequential(
         nn.Conv2d(self.channels, 128, 3, stride=1, padding=1),
-        Interpolate(2, mode='bilinear', align_corners=True),
+        Interpolate(2, mode='bilinear', align_corners=True), # 256C*H*W
         nn.Conv2d(128, 32, 3, stride=1, padding=1),
         nn.ReLU(True),
         nn.Conv2d(32, 1, kernel_size=1, stride=1, padding=0),
@@ -62,18 +63,18 @@ class Resnet101RefineNet(nn.Module):
       layer3_rn = self.encoder.layer3_rn(layer3)
       layer4_rn = self.encoder.layer4_rn(layer4)
 
-      ref4 = self.encoder.refinet4(layer4_rn)
-      ref3 = self.encoder.refinet3(ref4, layer3_rn)
-      ref2 = self.encoder.refinet2(ref3, layer2_rn)
-      ref1 = self.encoder.refinet1(ref2, layer1_rn)
+      ref4 = self.encoder.refinet4(layer4_rn) # 256*(1/16)H*(1/16)W
+      ref3 = self.encoder.refinet3(ref4, layer3_rn) # 256*(1/8)H*(1/8)W
+      ref2 = self.encoder.refinet2(ref3, layer2_rn) # 256*(1/4)H*(1/4)W
+      ref1 = self.encoder.refinet1(ref2, layer1_rn) # 256*(1/2)H*(1/2)W
 
       return self.encoder.output_conv(ref1)
   
 class FeatureFusionModule(nn.Module):
   def __init__(self, features):
     super().__init__()
-    self.resConv1 = RedisualConvUnit(features)    
-    self.resConv2 = RedisualConvUnit(features)    
+    self.resConv1 = RedisualConvUnit(features)
+    self.resConv2 = RedisualConvUnit(features)
   
   def forward(self, *x):
     out = x[0]
@@ -82,7 +83,7 @@ class FeatureFusionModule(nn.Module):
       out += self.resConv1(x[1])
     
     out = self.resConv2(out)
-    out = F.interpolate(out, scale_factor=2, mode='bilinear', align_corners=True)
+    out = F.interpolate(out, scale_factor=2, mode='bilinear', align_corners=False)
 
     return out
 
@@ -115,3 +116,12 @@ class Interpolate(nn.Module):
     )
 
     return x
+
+if __name__ == '__main__':
+  # Just sanity check
+  try:
+    model = Resnet101RefineNet()
+    out = model(torch.randn((1, 3, 224, 320)))
+  except Exception as e:
+    print('Something went wrong with Resnet101RefineNet model')
+    print(e)
