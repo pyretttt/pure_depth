@@ -14,7 +14,7 @@ def apply(
   if reduction == 'sum':
     return results.sum(dim=0)
   elif reduction == 'mean':
-    return results.float().mean(dim=0)    
+    return results.float().mean(dim=0)
 
 def count_mean_and_std_per_channel(data_loader: DataLoader) -> torch.Tensor:
   def stat_counter(x: torch.Tensor, _):
@@ -30,6 +30,19 @@ def count_mean_and_std_per_channel(data_loader: DataLoader) -> torch.Tensor:
     return torch.stack((counts, mean_sum, mean_std), dim=0)
 
   result = apply(data_loader, stat_counter)
-  
   count, mean, std = result
   return (mean / count, std / count)
+
+def count_min_max(data_loader: DataLoader) -> torch.Tensor:
+  minimum, maximum = float('inf'), -float('inf')
+  device = 'cuda' if torch.cuda.is_available() else 'cpu'
+  
+  for _, y_batch in data_loader:
+    y_batch: torch.Tensor = y_batch.to(device)
+    
+    batch_min = y_batch.min().cpu().detach().item()
+    minimum = min(batch_min, minimum)
+    batch_max = y_batch.max().cpu().detach().item()
+    maximum = max(batch_max, maximum)
+  
+  return minimum, maximum

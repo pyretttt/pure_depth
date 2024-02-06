@@ -3,7 +3,6 @@ from torch.nn import functional as F
 from torchvision.models import resnet101
 import torchvision
 
-
 class Resnet101Pyramid(nn.Module):
   def __init__(self, pretrained_encoder=True):
     super().__init__()
