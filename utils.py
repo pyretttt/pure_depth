@@ -46,3 +46,14 @@ def count_min_max(data_loader: DataLoader) -> torch.Tensor:
     maximum = max(batch_max, maximum)
   
   return minimum, maximum
+
+  
+def img_to_patch(x, patch_size, flatten_channel=True):
+    """create patches of images"""
+    B,C,H,W = x.shape
+    x = x.reshape(B, C, H//patch_size, patch_size, W//patch_size, patch_size)
+    x = x.permute(0,2,4,1,3,5)
+    x = x.flatten(1,2)
+    if flatten_channel:
+        x = x.flatten(2,4)
+    return x

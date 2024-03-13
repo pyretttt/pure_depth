@@ -44,7 +44,8 @@ class MultiTermAdam(Optimizer):
 
     def update_weights(self, loss_array, ranks):
         for loss_index, loss in enumerate(loss_array):
-          loss.backward(retain_graph=True)
+          should_retain = loss_index != len(loss_array) - 1
+          loss.backward(retain_graph=should_retain)
           for group in self.param_groups:
             for p in group['params']:
 
@@ -52,7 +53,7 @@ class MultiTermAdam(Optimizer):
                 continue
 
               if p.grad.is_sparse:
-                raise RuntimeError('MTAdam does not support sparse gradients')
+                raise RuntimeError('Sparse gradients aren\'t supported')
 
               state = self.state[p]
 

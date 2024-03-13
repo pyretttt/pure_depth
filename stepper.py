@@ -157,12 +157,15 @@ class MultiTermLossStepper(Stepper):
       
       yhat = self.model(X_train)
       
-      losses = self.loss_fn(yhat, y_train)
-      
-      self.optim.step(losses, ranks=[1] * len(losses))
+      l0, l1 = self.loss_fn(yhat, y_train)
+      l0.backward(retain_graph=True)
+      self.optim.step()
+      self.optim.zero_grad()
+      l1.backward()
+      self.optim.step()
       self.optim.zero_grad()
       
-      return losses
+      return [l0, l1]
     
     return train_step
   
@@ -173,7 +176,7 @@ class MultiTermLossStepper(Stepper):
       
       losses = self.loss_fn(yhat, y_val)
       
-      return losses
+      return [l.item() for l in losses]
 
     return val_step
   
