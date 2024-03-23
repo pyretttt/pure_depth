@@ -55,6 +55,31 @@ def nyuv2_loss_fn(
     return 0.1 * l1 + l2 + l3
 
 
+def nyuv2_multiterm_loss_fn(
+    y_hat: torch.Tensor, y_true: torch.Tensor, alpha=0.7, data_range=NUY_V2_DATA_RANGE
+):
+    mask = y_true > 0
+    l1 = sil_loss(y_hat, y_true, alpha=alpha, mask=mask)
+    l2 = grad_l1_loss(y_hat, y_true, mask=mask)
+    l3 = dssim(y_hat, y_true, data_range=data_range)
+
+    return l1, l2, l3
+
+def nyuv2_multiterm_loss_fn_vit(
+    y_hat: torch.Tensor, y_true: torch.Tensor, alpha=0.7, data_range=NUY_V2_DATA_RANGE
+):
+    metric, struct = y_hat
+    mask = y_true > 0
+    
+    # struct_error = grad_l1_loss(struct, y_true, mask) + dssim(struct, y_true, data_range=data_range)
+    metric_error = 0.1 * sil_loss(metric, y_true, alpha=alpha, mask=mask) \
+        + dssim(metric, y_true, data_range=data_range) \
+        + grad_l1_loss(metric, y_true, mask)
+
+    #return struct_error + metric_error
+    return metric_error
+
+
 def _gaussian(window_size: int, sigma: float):
     g = torch.Tensor(
         [

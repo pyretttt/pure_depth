@@ -148,3 +148,56 @@ class Stepper:
     self.model.eval()
     pred = self.model(x_batch)
     return pred
+
+    
+class MultiTermLossStepper(Stepper):
+  def _make_train_step_fn(self):
+    def train_step(X_train, y_train):
+      self.model.train()
+      
+      yhat = self.model(X_train)
+      
+      l0, l1 = self.loss_fn(yhat, y_train)
+      l0.backward(retain_graph=True)
+      self.optim.step()
+      self.optim.zero_grad()
+      l1.backward()
+      self.optim.step()
+      self.optim.zero_grad()
+      
+      return [l0, l1]
+    
+    return train_step
+  
+  def _make_val_step_fn(self):
+    def val_step(X_val, y_val):
+      self.model.eval()
+      yhat = self.model(X_val)
+      
+      losses = self.loss_fn(yhat, y_val)
+      
+      return [l.item() for l in losses]
+
+    return val_step
+  
+  def _mini_batch(self, val: bool):
+    if val:
+      step_fn = self._val_step_fn
+      data_loader = self._val_loader
+      desc = 'validation step'
+    else:
+      step_fn = self._train_step_fn
+      data_loader = self._train_loader
+      desc = 'train step'
+      
+    running_loss = []
+    with tqdm(data_loader, desc=desc, unit='batch') as t_epoch:
+      for X_batch, y_batch in t_epoch:
+        X_batch, y_batch = X_batch.to(self.device), y_batch.to(self.device)
+        losses = step_fn(X_batch, y_batch)
+        running_loss.append(losses)
+
+        t_epoch.set_postfix(losses=losses)
+    
+    loss = np.mean(running_loss, axis=0)
+    return loss
