@@ -4,30 +4,26 @@ from warnings import warn
 import torch
 from torch import nn
 from torch.nn import functional as F
-import torchvision
-from torchvision.models import resnet101, efficientnet_b5
+
+from models.backbone.efficientnet import EfficientNet
+from models.backbone.resnet101 import ResnetBackbone
+from models.backbone.densenet169 import DensenetBackbone
+
 
 class Backbone(Enum):
   RESNET = 1
+  EFFICIENT_NET = 2 # Not implemented
+  DENSENET = 3
+
 
 def make_backbone(model: Backbone, pretrained: bool = True):
-  module = nn.Module() 
-  
   if model is Backbone.RESNET:
-      weights = torchvision.models.ResNet101_Weights.IMAGENET1K_V2 if pretrained else None
-      resnet = resnet101(weights=weights, progress=True)
-      
-      if pretrained:
-        for p in resnet.parameters():
-          p.requires_grad_(False)
-
-      module = nn.Module()
-      module.layer1 = nn.Sequential(resnet.conv1, resnet.bn1, resnet.relu, resnet.maxpool, resnet.layer1) # 256C*(1/4)H*(1/4)W
-      module.layer2 = resnet.layer2 # 512C*(1/8)H*(1/8)W
-      module.layer3 = resnet.layer3 # 1024C*(1/16)H*(1/16)W
-      module.layer4 = resnet.layer4 # 2048C*(1/32)H*(1/32)W
-      
-      return module
+    resnet = ResnetBackbone(pretrained=pretrained)
+    return resnet, [256, 512, 1024, 2048]
+  elif model is Backbone.EFFICIENT_NET:
+    return EfficientNet(), [192, 384, 768, 1536] # TOOD: Update
+  elif model is Backbone.DENSENET:
+    return DensenetBackbone(), [256, 512, 1280, 1664]
   else:
     raise ValueError("Unknown backbone")
     
@@ -51,14 +47,18 @@ class FeatureFusionModule(nn.Module):
 class RedisualConvUnit(nn.Module):
   def __init__(self, features, negative_slope=0.0):
     super().__init__()
-    self.conv1 = nn.Conv2d(features, features, 3, stride=1, padding=1)
-    self.conv2 = nn.Conv2d(features, features, 3, stride=1, padding=1)
+    self.conv1 = nn.Conv2d(features, features, 3, stride=1, padding=1, bias=False)
+    self.batch_norm1 = nn.BatchNorm2d(features)
+    self.conv2 = nn.Conv2d(features, features, 3, stride=1, padding=1, bias=False)
+    self.batch_norm2 = nn.BatchNorm2d(features)
     self.leaky_relu = nn.LeakyReLU(negative_slope, inplace=True)
     
   def forward(self, x):
     out = self.leaky_relu(x)
-    out = self.leaky_relu(self.conv1(out))
-    out = self.conv2(out)
+    out = self.leaky_relu(
+      self.batch_norm1(self.conv1(out))
+    )
+    out = self.batch_norm2(self.conv2(out))
     
     return out + x
   
@@ -120,7 +120,7 @@ class PatchEncoder(nn.Module):
     patches += self.pos_encodding.unsqueeze(0) # NxSxEmb
 
     embeddings = patches.permute(1, 0, 2) # SxNxEmb sequence first
-    x = self.transformer_encoder(embeddings)
+    x = self.transformer_encoder(embeddings) # SxNxEmb
     return x
 
 
@@ -147,14 +147,14 @@ class ViT(nn.Module):
         shape: NxCxHxW
     '''
     target = self.patch_encoder(x) # SxNxEmb
-    keys = self.inception(x)
+    keys = self.inception(x) # NxEmbxHxW
 
     regression_head, queries = target[0, ...], target[1:self.n_query_channels + 1, ...]
-    queries = queries.permute(1, 0, 2) # SxNxEmb ~> NxSxEmb batch first
+    queries = queries.permute(1, 0, 2) # QueryxNxEmb ~> NxQueryxEmb batch first
 
     attention_maps = PixelWiseDotProduct(keys, queries) # NxQueryxHxW
 
-    y = F.softmax(self.regression(regression_head), dim=1) # NxEmb
+    y = F.softmax(self.regression(regression_head), dim=1) # NxNumber_of_classes
 
     return y, attention_maps
 
@@ -181,10 +181,10 @@ def PixelWiseDotProduct(x, y):
       shape: NxSxEmb
   '''
   n, c, h, w = x.size()
-  _, seq, features = y.size()
-  assert c == features, "Number of channels in x and Embedding dimension (at dim 2) of y matrix must match"
+  _, seq, emb = y.size()
+  assert c == emb, "Number of channels in x and Embedding dimension (at dim 2) of y matrix must match"
   y = torch.matmul(
-    x.view(n, c, h * w).permute(0, 2, 1), # NxHWxC
+    x.view(n, c, h * w).permute(0, 2, 1), # NxHWxC(Emb)
     y.permute(0, 2, 1) # NxEmbxS
   )  # NxHWxS
   return y.permute(0, 2, 1).view(n, seq, h, w) # NxSxHxW

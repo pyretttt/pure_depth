@@ -31,3 +31,7 @@ class WandBSummaryWritter(SummaryWriter):
     
   def finalize(self):
     wandb.finish()
+
+  @property
+  def name(self):
+    return wandb.run.name

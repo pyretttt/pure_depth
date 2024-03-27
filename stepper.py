@@ -31,7 +31,10 @@ class Stepper:
     
     self.train_losses = []
     self.val_losses = []
-
+    
+    self._lr_scheduler = None
+    self._batch_lr_scheduler = None
+    
     self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
   def to(self, device):
@@ -41,6 +44,16 @@ class Stepper:
   def set_loaders(self, train_loader, val_loader):
     self._train_loader = train_loader
     self._val_loader = val_loader
+
+  def set_lr_schedulers(self, lr_scheduler, over_batch: bool):
+    if lr_scheduler.optimizer != self.optim:
+      raise RuntimeError("Scheduler initalized uncorrectly")
+    
+    if over_batch:
+      self._batch_lr_scheduler = lr_scheduler
+    else:
+      self._lr_scheduler = lr_scheduler
+
     
   def _make_train_step_fn(self):
     def train_step(X_train, y_train):
@@ -74,10 +87,12 @@ class Stepper:
       step_fn = self._val_step_fn
       data_loader = self._val_loader
       desc = 'validation step'
+      scheduler = None
     else:
       step_fn = self._train_step_fn
       data_loader = self._train_loader
       desc = 'train step'
+      scheduler = self._schedule_batch_lr
       
     running_loss = []
     with tqdm(data_loader, desc=desc, unit='batch') as t_epoch:
@@ -86,7 +101,11 @@ class Stepper:
         loss = step_fn(X_batch, y_batch)
         running_loss.append(loss)
 
+        if (scheduler := scheduler):
+          scheduler()
+
         t_epoch.set_postfix(loss=loss)
+
     
     loss = np.mean(running_loss)
     return loss
@@ -112,6 +131,8 @@ class Stepper:
       with torch.no_grad():
         val_loss = self._mini_batch(val=True)
         self.val_losses.append(val_loss)
+        
+      self._schedule_epoch_lr(val_loss=val_loss)
       
       self.total_epochs += 1
       
@@ -120,7 +141,24 @@ class Stepper:
           'train_loss': train_loss,
           'val_loss': val_loss,
           'epoch': epoch,
+          'lr': self.optim.param_groups[0]['lr']
         })
+        
+  def _schedule_epoch_lr(self, **kwargs):
+   if (lr_scheduler := self._lr_scheduler):
+    if isinstance(lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+      lr_scheduler.step(kwargs['val_loss'])
+    else:
+      lr_scheduler.step()
+
+    if (sw := self.summary_writter):
+      sw.track_object({
+        'epoch_lr': lr_scheduler.get_last_lr()
+      })
+      
+  def _schedule_batch_lr(self, **kwargs):
+    if (lr_scheduler := self._batch_lr_scheduler):
+      lr_scheduler.step()
 
   def save_checkpoint(self, file_name: str):
     checkpoint = {
