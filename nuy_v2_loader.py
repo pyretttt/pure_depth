@@ -1,20 +1,33 @@
 import os
 import sys
-import h5py
-import torch
 import random
 import tarfile
-import numpy as np
 from pathlib import Path
 from multiprocessing import Pool
+from functools import partial
 
+import h5py
+import torch
+import numpy as np
 from PIL import Image
 from torch.utils.data import Dataset
 from torchvision.datasets.utils import download_url
+from torchvision.transforms import v2
+
+from utils import random_resized_crop, horizontal_flip
+from constants import INPUT_SIZE
+
 
 _URL = "http://datasets.lids.mit.edu/fastdepth/data/nyudepthv2.tar.gz"
 _WORKERS = 2
 _DATA_FOLDER = "nyu_v2_data"
+
+_RATIOS = (INPUT_SIZE[1] / INPUT_SIZE[0], INPUT_SIZE[1] / INPUT_SIZE[0])
+
+DEFAULT_COMMON_TRANSFORMS = [
+ (horizontal_flip, 0.5),
+ (partial(random_resized_crop, resized_size=INPUT_SIZE, scale=(0.9, 0.95), ratio=_RATIOS), 0.5)
+]
 
 class NYUV2Dataset(Dataset):
   def __init__(
@@ -26,13 +39,16 @@ class NYUV2Dataset(Dataset):
     download: bool = False,
     seed: int = 42,
     max_lenght: int = None,
+    common_transforms = DEFAULT_COMMON_TRANSFORMS
   ):
     self._root_dir = root_dir
+    self._common_transforms = common_transforms
     self._rgb_transform = rgb_transform
     self._depth_transform = depth_transform
     self._split = split
-    self.seed = 42
+    self.seed = seed
     self.max_lenght = max_lenght
+    self.common_transforms = common_transforms
     
     self._download = download
 
@@ -58,11 +74,19 @@ class NYUV2Dataset(Dataset):
     depth = np.load(file_path + ".npy")
     depth = self._depth_transform(depth)
 
-    return rgb, depth
+    return self._transform(rgb, depth)
 
   def __len__(self):
     override_lenght = self.max_lenght or sys.maxsize
     return min(override_lenght, len(self._files))
+  
+  def _transform(self, x, y):    
+    for t, p in self.common_transforms:
+      if np.random.rand() > p:
+        x, y = t(x, y)
+    
+    return x, y
+      
 
 def _download(root_dir):
   print("Downloading from remote")

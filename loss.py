@@ -171,7 +171,6 @@ def _ssim(
 
     return ssim_map, cs
 
-
 if __name__ == "__main__":
     # Sanity Check
     device = "cuda" if torch.cuda.is_available() else "cpu"
