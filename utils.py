@@ -2,6 +2,7 @@ from typing import Any, Callable
 
 import torch
 from torch.utils.data import DataLoader
+from torchvision.transforms import v2
 
 
 def apply(
@@ -57,3 +58,21 @@ def img_to_patch(x, patch_size, flatten_channel=True):
     if flatten_channel:
         x = x.flatten(2,4)
     return x
+
+def random_resized_crop(*x, resized_size, scale, ratio):
+  p = v2.RandomResizedCrop \
+  .get_params(x[0], scale=scale, ratio=ratio)
+  
+  return [
+    v2.functional.resized_crop(sample, *p, size=resized_size)
+    for sample in x
+  ]
+
+def horizontal_flip(*x: list[torch.tensor]):
+  return [v2.functional.horizontal_flip(sample) for sample in x]
+
+  
+def make_write_output_hook(storage: dict, key):
+  def hook(module, input, output):
+    storage[key] = output
+  return hook
