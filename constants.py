@@ -8,6 +8,8 @@ class Namespace:
 SEED = 43
 EPSILON = 1e-8
 
+SCALE_INVARIANCE_ALPHA = 0
+
 INPUT_SIZE=(224, 320)
 
 RGB = Namespace(name='RGB')

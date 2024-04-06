@@ -100,9 +100,9 @@ class PatchEncoder(nn.Module):
     if input_shape[1] % patch_size or input_shape[2] % patch_size:
       warn('Img size isn\'t divisible by patchsize, which may lead to worse performance')
     
-    sequence = int((input_shape[1] // patch_size) * (input_shape[2] // patch_size))
+    self.sequence = int((input_shape[1] // patch_size) * (input_shape[2] // patch_size))
     self.pos_encodding = nn.Parameter(
-      torch.randn(sequence + 1, embedding_dim), # one extra for cls token
+      torch.randn(self.sequence + 1, embedding_dim), # one extra for cls token
       requires_grad=True
     )
     self.cls_token = nn.Parameter(torch.randn(1, 1, embedding_dim), requires_grad=True)
@@ -149,7 +149,7 @@ class ViT(nn.Module):
     target = self.patch_encoder(x) # SxNxEmb
     keys = self.inception(x) # NxEmbxHxW
 
-    regression_head, queries = target[0, ...], target[1:self.n_query_channels + 1, ...]
+    regression_head, queries = target[0, ...], target[1:self.patch_encoder.sequence + 1, ...]
     queries = queries.permute(1, 0, 2) # QueryxNxEmb ~> NxQueryxEmb batch first
 
     attention_maps = PixelWiseDotProduct(keys, queries) # NxQueryxHxW

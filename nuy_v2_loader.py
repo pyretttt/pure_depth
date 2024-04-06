@@ -26,7 +26,7 @@ _RATIOS = (INPUT_SIZE[1] / INPUT_SIZE[0], INPUT_SIZE[1] / INPUT_SIZE[0])
 
 DEFAULT_COMMON_TRANSFORMS = [
  (horizontal_flip, 0.5),
- (partial(random_resized_crop, resized_size=INPUT_SIZE, scale=(0.9, 0.95), ratio=_RATIOS), 0.5)
+ (partial(random_resized_crop, resized_size=INPUT_SIZE, scale=(0.85, 0.95), ratio=_RATIOS), 0.3)
 ]
 
 class NYUV2Dataset(Dataset):
