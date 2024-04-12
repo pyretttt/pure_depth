@@ -8,12 +8,14 @@ from torch.nn import functional as F
 from models.backbone.efficientnet import EfficientNet
 from models.backbone.resnet101 import ResnetBackbone
 from models.backbone.densenet169 import DensenetBackbone
+from models.backbone.resnetx import ResnetXBackbone
 
 
 class Backbone(Enum):
   RESNET = 1
   EFFICIENT_NET = 2 # Not implemented
   DENSENET = 3
+  RESNET_X = 4
 
 
 def make_backbone(model: Backbone, pretrained: bool = True):
@@ -24,6 +26,8 @@ def make_backbone(model: Backbone, pretrained: bool = True):
     return EfficientNet(), [192, 384, 768, 1536] # TOOD: Update
   elif model is Backbone.DENSENET:
     return DensenetBackbone(), [256, 512, 1280, 1664]
+  elif model is Backbone.RESNET_X:
+    return ResnetXBackbone(), [256, 512, 1024, 2048]
   else:
     raise ValueError("Unknown backbone")
     
@@ -134,10 +138,10 @@ class ViT(nn.Module):
       nn.Linear(embedding_dim, 256),
       nn.BatchNorm1d(256),
       nn.LeakyReLU(True),
-      nn.Linear(256, 128),
-      nn.BatchNorm1d(128),
+      nn.Linear(256, 256),
+      nn.BatchNorm1d(256),
       nn.LeakyReLU(True),
-      nn.Linear(128, number_of_classes),
+      nn.Linear(256, number_of_classes),
     )
     
   def forward(self, x):
@@ -188,7 +192,8 @@ def PixelWiseDotProduct(x, y):
     y.permute(0, 2, 1) # NxEmbxS
   )  # NxHWxS
   return y.permute(0, 2, 1).view(n, seq, h, w) # NxSxHxW
-      
+
+
 if __name__ == '__main__':
   # sanity check
   x = torch.rand(2, 3, 224, 320)

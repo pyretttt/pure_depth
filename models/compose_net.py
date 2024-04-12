@@ -23,7 +23,7 @@ class ComposeNet(nn.Module):
     self.classes = classes
     self.vit_channels_in = vit_channels_in
     
-    self.backbone, backbone_channels_out = make_backbone(Backbone.DENSENET, pretrained=True)
+    self.backbone, backbone_channels_out = make_backbone(Backbone.RESNET_X, pretrained=True)
     self.structure_estimator = StructureEstimator(
       backbone_channels=backbone_channels_out,
       channels=decoder_channels, 

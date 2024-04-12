@@ -50,7 +50,7 @@ def nyuv2_loss_fn(
 ):
     """SiLogLoss with scale invariant alpha + L1 Gradient loss + DSSIM"""
 
-    mask = y_true > 0
+    mask = y_true > 1e-3
     l1 = sil_loss(y_hat, y_true, alpha=alpha, mask=mask)
     l2 = grad_l1_loss(y_hat, y_true, mask=mask)
     l3 = dssim(y_hat, y_true, data_range=data_range)
@@ -64,7 +64,7 @@ def nyuv2_multiterm_loss_fn(
     alpha=SCALE_INVARIANCE_ALPHA, 
     data_range=NUY_V2_DATA_RANGE
 ):
-    mask = y_true > 0
+    mask = y_true > 1e-3
     l1 = sil_loss(y_hat, y_true, alpha=alpha, mask=mask)
     l2 = grad_l1_loss(y_hat, y_true, mask=mask)
     l3 = dssim(y_hat, y_true, data_range=data_range)
@@ -79,7 +79,7 @@ def nyuv2_multiterm_loss_fn_vit(
     y_hat: torch.Tensor, y_true: torch.Tensor, alpha=SCALE_INVARIANCE_ALPHA, data_range=NUY_V2_DATA_RANGE
 ):
     metric, struct = y_hat
-    mask = y_true > 0
+    mask = y_true > 1e-3
     
     # struct_error = grad_l1_loss(struct, y_true, mask) + dssim(struct, y_true, data_range=data_range)
     metric_error = 0.1 * sil_loss(metric, y_true, alpha=alpha, mask=mask) \
