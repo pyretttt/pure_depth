@@ -71,6 +71,13 @@ def random_resized_crop(*x, resized_size, scale, ratio):
 def horizontal_flip(*x: list[torch.tensor]):
   return [v2.functional.horizontal_flip(sample) for sample in x]
 
+def random_rotation(*x: list[torch.tensor], angle=5):
+  degree = (torch.zeros(1).uniform_(0, 1).item() - 0.5) * 2 * angle
+  return [
+    v2.functional.rotate(sample, degree, interpolation=v2.InterpolationMode.NEAREST, fill=0.0)
+    for sample in x
+  ]
+
   
 def make_write_output_hook(storage: dict, key):
   def hook(module, input, output):

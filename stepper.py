@@ -7,6 +7,12 @@ from torch.optim import Optimizer
 from tqdm import tqdm
 
 from summary_writer import SummaryWriter
+from metrics import (
+  absolute_relative_mean_error,
+  root_mean_squared_error,
+  average_absolute_log_error,
+  threshold_acc
+)
 
 class Stepper:
   def __init__(
@@ -88,11 +94,15 @@ class Stepper:
       data_loader = self._val_loader
       desc = 'validation step'
       scheduler = None
+      if isinstance(self.loss_fn, nn.Module):
+        self.loss_fn.eval()
     else:
       step_fn = self._train_step_fn
       data_loader = self._train_loader
       desc = 'train step'
       scheduler = self._schedule_batch_lr
+      if isinstance(self.loss_fn, nn.Module):
+        self.loss_fn.train()
       
     running_loss = []
     with tqdm(data_loader, desc=desc, unit='batch') as t_epoch:
@@ -138,11 +148,17 @@ class Stepper:
       
       if (sw := self.summary_writter):
         sw.track_object({
-          'train_loss': train_loss,
-          'val_loss': val_loss,
-          'epoch': epoch,
-          'lr': self.optim.param_groups[0]['lr']
-        })
+            'train_loss': train_loss,
+            'val_loss': val_loss,
+            'epoch': epoch,
+            'lr': self.optim.param_groups[0]['lr'],
+            'alphas': {
+              'sil': self.loss_fn.alphas[0].item(), # TODO: Fix later
+              'grad_l1': self.loss_fn.alphas[1].item(),
+              'dssim': self.loss_fn.alphas[2].item(),
+            }
+          } | self.gather_metrics()
+        )
         
   def _schedule_epoch_lr(self, **kwargs):
    if (lr_scheduler := self._lr_scheduler):
@@ -187,6 +203,66 @@ class Stepper:
     pred = self.model(x_batch)
     return pred
 
+  def gather_metrics(self, validation: bool = True):
+    running_metrics: np.array = None
+
+    data_loader = (self._train_loader, self._val_loader)[validation]
+    
+    self.model.eval()
+    with torch.no_grad():
+      for x_batch, y_batch in data_loader:
+        x_batch, y_batch = x_batch.to(self.device), y_batch.to(self.device)
+        pred = self.model(x_batch)
+
+        metrics = np.array((
+          absolute_relative_mean_error(pred, y_batch).item(),
+          root_mean_squared_error(pred, y_batch).item(),
+          average_absolute_log_error(pred, y_batch).item(),
+          *(
+            metric.item() 
+            for metric 
+            in threshold_acc(pred, y_batch)
+          )
+        )).reshape(1, -1)
+        
+        if running_metrics is None:
+          running_metrics = metrics
+        else:
+          running_metrics = np.vstack((running_metrics, metrics))
+    
+    mean_metrics = np.mean(running_metrics, axis=0)
+    return {
+      'evaluation_metrics': {
+        'absolute_relative_mean_error': mean_metrics[0],
+        'root_mean_squared_error': mean_metrics[1],
+        'average_absolute_log_error': mean_metrics[2],
+        'threshold_accuracy_delta_1': mean_metrics[3],
+        'threshold_accuracy_delta_2': mean_metrics[4],
+        'threshold_accuracy_delta_3': mean_metrics[5]
+      }
+    }
+
+  def capture_gradients(self, layers_to_hook: list[str]):
+    grads = dict()
+    def capturer(name, param):
+      def hook_fn(grad):
+        grads[name][param].append(grad.tolist())
+        return None
+      return hook_fn
+    
+    hooks = []
+    for name, layer in self.model.named_modules():
+      if name in layers_to_hook:
+        grads.update({name: {}})
+        for param_id, p in layer.named_parameters():
+          if p.requires_grad:
+            grads[name].update({param_id: []})
+            
+            hooks.append(
+              p.register_hook(capturer(name, param_id))
+            )
+    
+    return grads, hooks        
     
 class MultiTermLossStepper(Stepper):
   def _make_train_step_fn(self):

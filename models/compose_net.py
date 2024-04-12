@@ -23,7 +23,7 @@ class ComposeNet(nn.Module):
     self.classes = classes
     self.vit_channels_in = vit_channels_in
     
-    self.backbone, backbone_channels_out = make_backbone(Backbone.DENSENET, pretrained=True)
+    self.backbone, backbone_channels_out = make_backbone(Backbone.RESNET_X, pretrained=True)
     self.structure_estimator = StructureEstimator(
       backbone_channels=backbone_channels_out,
       channels=decoder_channels, 
@@ -77,13 +77,14 @@ class StructureEstimator(nn.Module):
     
     self.output_conv = nn.Sequential(
       nn.LeakyReLU(negative_slope, inplace=True),
-      nn.Conv2d(channels, 128, kernel_size=3, stride=1, padding=1, bias=False),
-      nn.BatchNorm2d(128),
+      nn.Conv2d(channels, 256, kernel_size=3, stride=1, padding=1, bias=False),
+      nn.BatchNorm2d(256),
       nn.LeakyReLU(negative_slope, inplace=True),
       Interpolate(2, mode='bilinear', align_corners=True), # C*H*W
       # nn.Conv2d(channels, 128, kernel_size=3, stride=1, padding=1, bias=False),
       # nn.BatchNorm2d(128),
-      nn.Conv2d(128, channels_out, kernel_size=3, stride=1, padding=1),
+      nn.Conv2d(256, channels_out, kernel_size=3, stride=1, padding=1),
+      nn.LeakyReLU(negative_slope, inplace=True),
     )
 
   def forward(self, *x):
@@ -118,7 +119,7 @@ class MetricEstimator(nn.Module):
     self.min_value = min_max_values[0]
     self.max_value = min_max_values[1]
     self.distribution = nn.Sequential(
-      nn.Conv2d(n_queries, classes, kernel_size=1),
+      nn.Conv2d(self.vit.patch_encoder.sequence, classes, kernel_size=1, bias=False),
       nn.Softmax(dim=1)  
     )
 

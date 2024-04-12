@@ -8,12 +8,14 @@ from torch.nn import functional as F
 from models.backbone.efficientnet import EfficientNet
 from models.backbone.resnet101 import ResnetBackbone
 from models.backbone.densenet169 import DensenetBackbone
+from models.backbone.resnetx import ResnetXBackbone
 
 
 class Backbone(Enum):
   RESNET = 1
   EFFICIENT_NET = 2 # Not implemented
   DENSENET = 3
+  RESNET_X = 4
 
 
 def make_backbone(model: Backbone, pretrained: bool = True):
@@ -24,6 +26,8 @@ def make_backbone(model: Backbone, pretrained: bool = True):
     return EfficientNet(), [192, 384, 768, 1536] # TOOD: Update
   elif model is Backbone.DENSENET:
     return DensenetBackbone(), [256, 512, 1280, 1664]
+  elif model is Backbone.RESNET_X:
+    return ResnetXBackbone(), [256, 512, 1024, 2048]
   else:
     raise ValueError("Unknown backbone")
     
@@ -100,9 +104,9 @@ class PatchEncoder(nn.Module):
     if input_shape[1] % patch_size or input_shape[2] % patch_size:
       warn('Img size isn\'t divisible by patchsize, which may lead to worse performance')
     
-    sequence = int((input_shape[1] // patch_size) * (input_shape[2] // patch_size))
+    self.sequence = int((input_shape[1] // patch_size) * (input_shape[2] // patch_size))
     self.pos_encodding = nn.Parameter(
-      torch.randn(sequence + 1, embedding_dim), # one extra for cls token
+      torch.randn(self.sequence + 1, embedding_dim), # one extra for cls token
       requires_grad=True
     )
     self.cls_token = nn.Parameter(torch.randn(1, 1, embedding_dim), requires_grad=True)
@@ -134,10 +138,10 @@ class ViT(nn.Module):
       nn.Linear(embedding_dim, 256),
       nn.BatchNorm1d(256),
       nn.LeakyReLU(True),
-      nn.Linear(256, 128),
-      nn.BatchNorm1d(128),
+      nn.Linear(256, 256),
+      nn.BatchNorm1d(256),
       nn.LeakyReLU(True),
-      nn.Linear(128, number_of_classes),
+      nn.Linear(256, number_of_classes),
     )
     
   def forward(self, x):
@@ -149,7 +153,7 @@ class ViT(nn.Module):
     target = self.patch_encoder(x) # SxNxEmb
     keys = self.inception(x) # NxEmbxHxW
 
-    regression_head, queries = target[0, ...], target[1:self.n_query_channels + 1, ...]
+    regression_head, queries = target[0, ...], target[1:self.patch_encoder.sequence + 1, ...]
     queries = queries.permute(1, 0, 2) # QueryxNxEmb ~> NxQueryxEmb batch first
 
     attention_maps = PixelWiseDotProduct(keys, queries) # NxQueryxHxW
@@ -188,7 +192,8 @@ def PixelWiseDotProduct(x, y):
     y.permute(0, 2, 1) # NxEmbxS
   )  # NxHWxS
   return y.permute(0, 2, 1).view(n, seq, h, w) # NxSxHxW
-      
+
+
 if __name__ == '__main__':
   # sanity check
   x = torch.rand(2, 3, 224, 320)

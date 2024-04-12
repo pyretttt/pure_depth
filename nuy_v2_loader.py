@@ -12,21 +12,31 @@ import numpy as np
 from PIL import Image
 from torch.utils.data import Dataset
 from torchvision.datasets.utils import download_url
-from torchvision.transforms import v2
+from torchvision.transforms import CenterCrop, Resize
 
-from utils import random_resized_crop, horizontal_flip
-from constants import INPUT_SIZE
+from utils import random_resized_crop, horizontal_flip, random_rotation
+from constants import INPUT_SIZE, NYU_V2_SAFE_DIM, NYU_V2_SOURCE_DIM
 
 
 _URL = "http://datasets.lids.mit.edu/fastdepth/data/nyudepthv2.tar.gz"
 _WORKERS = 2
 _DATA_FOLDER = "nyu_v2_data"
 
-_RATIOS = (INPUT_SIZE[1] / INPUT_SIZE[0], INPUT_SIZE[1] / INPUT_SIZE[0])
+_RATIOS = (NYU_V2_SAFE_DIM[1] / NYU_V2_SAFE_DIM[0], NYU_V2_SAFE_DIM[1] / NYU_V2_SAFE_DIM[0])
+
+def center_crop(*x, crop):
+  return [crop(sample) for sample in x]
+
+def resize(*x, resize):
+  return [resize(sample) for sample in x]
 
 DEFAULT_COMMON_TRANSFORMS = [
  (horizontal_flip, 0.5),
- (partial(random_resized_crop, resized_size=INPUT_SIZE, scale=(0.9, 0.95), ratio=_RATIOS), 0.5)
+ (partial(center_crop, crop=CenterCrop((NYU_V2_SOURCE_DIM[0]-12, NYU_V2_SOURCE_DIM[1]-12))), -1),
+#  (random_rotation, 0.2),
+#  (partial(center_crop, crop=CenterCrop(NYU_V2_SAFE_DIM)), -1),
+ (partial(random_resized_crop, resized_size=INPUT_SIZE, scale=(0.7, 0.85), ratio=_RATIOS), -1),
+#  (partial(resize, resize=Resize(size=INPUT_SIZE)), -1),
 ]
 
 class NYUV2Dataset(Dataset):
