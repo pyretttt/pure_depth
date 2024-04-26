@@ -81,8 +81,6 @@ class StructureEstimator(nn.Module):
       nn.BatchNorm2d(256),
       nn.LeakyReLU(negative_slope, inplace=True),
       Interpolate(2, mode='bilinear', align_corners=True), # C*H*W
-      # nn.Conv2d(channels, 128, kernel_size=3, stride=1, padding=1, bias=False),
-      # nn.BatchNorm2d(128),
       nn.Conv2d(256, channels_out, kernel_size=3, stride=1, padding=1),
       nn.LeakyReLU(negative_slope, inplace=True),
     )
@@ -129,10 +127,6 @@ class MetricEstimator(nn.Module):
     
     distance_cum = distance.cumsum(dim=1)
     ranges = (self.max_value - self.min_value) * distance_cum
-    # ranges = nn.functional.pad(ranges, (1, 0), mode='constant', value=self.min_value)
-    # range_edges = torch.cumsum(ranges, dim=1)
-    # centers = 0.5 * (range_edges[:, :-1] + range_edges[:, 1:])
-    # centers = centers.view(*centers.size(), 1, 1)
     centers = ranges.view(*ranges.size(), 1, 1)
 
     return torch.sum(out * centers, dim=1, keepdim=True)

@@ -153,9 +153,10 @@ class Stepper:
             'epoch': epoch,
             'lr': self.optim.param_groups[0]['lr'],
             'alphas': {
-              'sil': self.loss_fn.alphas[0].item(), # TODO: Fix later
-              'grad_l1': self.loss_fn.alphas[1].item(),
-              'dssim': self.loss_fn.alphas[2].item(),
+              'beta': self.loss_fn.beta,
+              'sil': self.loss_fn.z_scores[0].item(), # TODO: Fix later
+              'grad_l1': self.loss_fn.z_scores[1].item(),
+              'dssim': self.loss_fn.z_scores[2].item(),
             }
           } | self.gather_metrics()
         )
